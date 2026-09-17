@@ -44,8 +44,19 @@ KAGCHAT_PORT=8081 docker compose up --build
 
 Open <http://localhost:8080>, click **Open a new room**, then paste the same
 URL into a second browser window. Both windows are now in the same room.
-Running it on Erebus and testing from another machine, that address is
-<http://10.0.0.202:8080> instead.
+
+Testing from another machine, do **not** browse to `http://10.0.0.202:8081`.
+Browsers only expose the encryption API (`crypto.subtle`) in a secure context:
+https, or a localhost address. A plain-http LAN IP is neither, so the client
+cannot start; it tells you so on the entry screen instead of hanging. Tunnel it
+to localhost instead:
+
+```bash
+ssh -L 8081:localhost:8081 goon@10.0.0.202     # leave this open
+```
+
+then browse to <http://localhost:8081>. This affects LAN testing only — behind
+the tunnel on https it is a secure context and the restriction disappears.
 
 The address bar will look like:
 

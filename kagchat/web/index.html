@@ -427,6 +427,23 @@ setInterval(() => {
 /* --- startup -------------------------------------------------------------- */
 
 async function boot() {
+  // Browsers only expose crypto.subtle in a "secure context": https, or a
+  // localhost address. Served over plain http from a LAN IP it is undefined
+  // and nothing below this line can work. Say so on the entry screen rather
+  // than throwing somewhere in the middle of startup and leaving the input
+  // greyed out with no explanation.
+  if (!window.isSecureContext || !crypto.subtle) {
+    const p = document.querySelector("#gate p");
+    p.style.color = "var(--alert)";
+    p.textContent =
+      "Served over plain http from " + location.host + ", where the browser " +
+      "switches off the encryption this depends on. Reach it over https, or " +
+      "tunnel it to localhost: ssh -L " + (location.port || "80") + ":localhost:" +
+      (location.port || "80") + " user@" + location.hostname;
+    $("mkroom").disabled = true;
+    return;
+  }
+
   let raw = keyFromURL();
   if (!raw) {
     $("mkroom").onclick = () => { newRoom(); location.reload(); };
@@ -469,7 +486,9 @@ async function boot() {
   }
 
   connect(ch, async (f) => {
-    if (f.op === "history") { for (const b of f.msgs) await show(b); }
+    // msgs is `omitempty` on the wire, so an empty room sends no array at
+    // all. Iterating it directly throws on every join to a fresh room.
+    if (f.op === "history") { for (const b of f.msgs || []) await show(b); }
     else if (f.op === "msg") { await show(f.body); }
     else if (f.op === "error") { note(f.err, true); }
   });
@@ -484,7 +503,19 @@ async function boot() {
   };
 }
 
-boot();
+// A rejected boot() would otherwise be an unhandled promise: the console
+// knows, the person looking at the page does not.
+boot().catch((e) => {
+  const why = "Startup failed: " + (e && e.message ? e.message : e);
+  // Before the room opens, #log is still hidden — put it on the gate instead.
+  if ($("app").hidden) {
+    const p = document.querySelector("#gate p");
+    p.style.color = "var(--alert)";
+    p.textContent = why;
+  } else {
+    note(why, true);
+  }
+});
 </script>
 </body>
 </html>

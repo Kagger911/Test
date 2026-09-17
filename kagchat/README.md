@@ -67,6 +67,15 @@ http://localhost:8081/#k=xkQ2...43-characters...9fA
 Everything after the `#` is the room key. Browsers never send that part to the
 server, which is the whole mechanism.
 
+A room can carry a name in the same place — `#k=...&n=friends` — typed into the
+**Room name** box in the rail. It rides in the link and the tab title, and
+never reaches the server either. It is a label, not a credential: knowing a
+room's name opens nothing without its key.
+
+While a tab is in the background, the title shows an unread count and a soft
+synthesised tone plays on arrival (no audio file; this page loads nothing).
+**sound: on/off** in the rail mutes it per browser.
+
 To confirm the server really cannot read anything:
 
 ```bash

@@ -92,6 +92,13 @@
   #newfp:hover { color: var(--text); border-color: var(--dim); }
   #newfp:focus-visible { outline: 2px solid var(--sodium); outline-offset: 1px; }
   #newfp:disabled { opacity: 0.45; cursor: default; }
+  #sound {
+    padding: 4px 8px; font: inherit; font-size: 11px;
+    background: transparent; color: var(--dim);
+    border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+  }
+  #sound:hover { color: var(--text); border-color: var(--dim); }
+  #sound:focus-visible { outline: 2px solid var(--sodium); outline-offset: 1px; }
 
   /* --- message river ---------------------------------------------------- */
   #river { display: flex; flex-direction: column; min-width: 0; }
@@ -172,6 +179,11 @@
     <div id="mark">kag<span>chat</span></div>
 
     <label class="field">
+      <span>Room name</span>
+      <input id="room" maxlength="40" autocomplete="off" spellcheck="false" placeholder="unnamed room">
+    </label>
+
+    <label class="field">
       <span>Your name here</span>
       <input id="nick" maxlength="24" autocomplete="off" spellcheck="false">
     </label>
@@ -185,6 +197,10 @@
       <label>Your fingerprint</label>
       <div id="fp">generating</div>
       <button id="newfp" type="button" title="Make a new signing key. Messages you already sent keep the old fingerprint.">new fingerprint</button>
+    </div>
+
+    <div class="field">
+      <button id="sound" type="button" title="Play a soft tone when a message arrives while this tab is in the background.">sound: on</button>
     </div>
 
     <div id="decay">
@@ -246,6 +262,20 @@ const b64u = {
 function keyFromURL() {
   const m = location.hash.match(/k=([A-Za-z0-9_-]{43})/);
   return m ? b64u.to(m[1]) : null;
+}
+
+// The room's human name rides in the same fragment as "&n=...". Like the
+// key, it never reaches the server: browsers do not send the fragment.
+// It is a label for humans, not a credential — knowing it opens nothing.
+function nameFromURL() {
+  const m = location.hash.match(/[&#]n=([^&]*)/);
+  try { return m ? decodeURIComponent(m[1]).slice(0, 40) : ""; } catch { return ""; }
+}
+
+// Rewrite the fragment in place (no history entry, no reload).
+function setFragment(keyB64, name) {
+  const h = "#k=" + keyB64 + (name ? "&n=" + encodeURIComponent(name) : "");
+  history.replaceState(null, "", location.pathname + location.search + h);
 }
 
 // Make a fresh room and put its key in the address bar.
@@ -429,6 +459,55 @@ function connect(ch, onFrame) {
   sock.onerror = () => sock.close();
 }
 
+/* --- attention: unread count in the tab title, soft ping when away ------- */
+
+// "Away" = this tab is hidden, or the window does not have focus. Either
+// way the person is not looking at the log, so count and ping.
+const away = () => document.hidden || !document.hasFocus();
+
+let unread = 0;
+let roomName = "";
+function setTitle() {
+  const base = roomName ? roomName + " — kagchat" : "kagchat";
+  document.title = unread ? "(" + unread + ") " + base : base;
+}
+function clearUnread() { unread = 0; setTitle(); }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) clearUnread(); });
+window.addEventListener("focus", clearUnread);
+
+// The tone is synthesised, not loaded: a file would be a network request,
+// and this page makes none except its own socket. Two short sine notes,
+// quiet. AudioContext can only start after a user gesture, so it is
+// created lazily on the first key or click and simply stays silent before.
+let audio = null;
+let lastPing = 0;
+const soundOn = () => localStorage.getItem("sound") !== "off";
+function armAudio() {
+  if (audio || !("AudioContext" in window)) return;
+  audio = new AudioContext();
+}
+document.addEventListener("keydown", armAudio, { once: true });
+document.addEventListener("pointerdown", armAudio, { once: true });
+
+function ping() {
+  if (!soundOn() || !audio) return;
+  const now = Date.now();
+  if (now - lastPing < 2000) return; // a burst is one ping, not ten
+  lastPing = now;
+  if (audio.state === "suspended") audio.resume();
+  const t = audio.currentTime;
+  [[660, 0], [880, 0.09]].forEach(([hz, at]) => {
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.type = "sine"; o.frequency.value = hz;
+    g.gain.setValueAtTime(0.0001, t + at);
+    g.gain.exponentialRampToValueAtTime(0.06, t + at + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.16);
+    o.connect(g).connect(audio.destination);
+    o.start(t + at); o.stop(t + at + 0.18);
+  });
+}
+
 /* --- countdown ------------------------------------------------------------ */
 
 // Counts down from 24h to show when the room starts forgetting. Restarts on
@@ -507,7 +586,31 @@ async function boot() {
   const key = await aesKey(raw);
   const ch = await roomID(raw);
 
+  // Room name: read from the link, editable in the rail. Editing rewrites
+  // the fragment and the invite link, so the next person you send it to
+  // gets the name too. People who already have the old link keep the old
+  // name; the key is what they share, the name is just what they call it.
+  const keyB64 = b64u.from(raw);
+  const roomBox = $("room");
+  roomName = nameFromURL();
+  roomBox.value = roomName;
+  setTitle();
+  roomBox.oninput = () => {
+    roomName = roomBox.value.replace(/[\r\n]/g, "").trim();
+    setFragment(keyB64, roomName);
+    $("share").value = location.href;
+    setTitle();
+  };
   $("share").value = location.href;
+
+  const soundBtn = $("sound");
+  const paintSound = () => { soundBtn.textContent = "sound: " + (soundOn() ? "on" : "off"); };
+  paintSound();
+  soundBtn.onclick = () => {
+    localStorage.setItem("sound", soundOn() ? "off" : "on");
+    paintSound();
+    if (soundOn()) { lastPing = 0; ping(); } // hear what you just turned on
+  };
 
   // Nick is cosmetic and remembered locally. The fingerprint is the real
   // identity; two people can share a nick and still be told apart.
@@ -515,18 +618,21 @@ async function boot() {
   nickBox.value = localStorage.getItem("nick") || "anon";
   nickBox.oninput = () => localStorage.setItem("nick", nickBox.value);
 
-  async function show(blob) {
+  // live=true for a message that just arrived; false for scrollback, which
+  // must never count as unread or make a sound.
+  async function show(blob, live) {
     const m = await open(key, blob);
     if (!m) return; // not ours to read
     decayFrom = Date.now();
     paint(m, await verify(m));
+    if (live && away()) { unread++; setTitle(); ping(); }
   }
 
   connect(ch, async (f) => {
     // msgs is `omitempty` on the wire, so an empty room sends no array at
     // all. Iterating it directly throws on every join to a fresh room.
-    if (f.op === "history") { for (const b of f.msgs || []) await show(b); }
-    else if (f.op === "msg") { await show(f.body); }
+    if (f.op === "history") { for (const b of f.msgs || []) await show(b, false); }
+    else if (f.op === "msg") { await show(f.body, true); }
     else if (f.op === "error") { note(f.err, true); }
   });
 

@@ -32,6 +32,11 @@
 
   * { box-sizing: border-box; }
 
+  /* #gate and #app both set display: below, which outranks the browser's own
+     [hidden] { display: none } rule. Without this, hidden="" is ignored and
+     the entry screen stays painted over the chat forever. */
+  [hidden] { display: none !important; }
+
   html, body {
     margin: 0; height: 100%;
     background: var(--ink); color: var(--text);

@@ -172,6 +172,23 @@
   .win__actions { display:flex; flex-wrap:wrap; gap:8px; }
   #invite { display:none; }
 
+  /* room switcher: buttons in the ROOM panel and on the entry screen */
+  .room-actions { display:flex; gap:6px; margin-top:8px; }
+  .room-actions .btn { flex:1; }
+  .rooms { list-style:none; margin:8px 0 0; padding:0; display:grid; gap:4px; }
+  .rooms li { display:flex; gap:4px; }
+  .rooms .go {
+    flex:1; min-width:0; text-align:left; cursor:pointer; font-family:var(--mono); font-size:11px; color:var(--text);
+    background:var(--panel-dark); border:1px solid; border-color:var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+    padding:5px 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .rooms .go:hover { color:#fff; background:var(--panel-alt); }
+  .rooms .go.is-here { border-color:var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark); color:var(--accent); cursor:default; }
+  .rooms .go small { color:var(--muted); margin-left:6px; }
+  .rooms .drop { cursor:pointer; font-family:var(--label); font-size:11px; font-weight:bold; color:var(--muted); background:var(--panel); border:1px solid var(--border); padding:0 7px; }
+  .rooms .drop:hover { color:var(--off); }
+  .rooms-empty { font-family:var(--mono); font-size:11px; color:#5c655e; margin:8px 0 0; }
+
   @media (prefers-reduced-motion:reduce) { .broadcast__track { animation:none; padding-left:0; } }
   @media (max-width: 720px) {
     #app { grid-template-columns:1fr; grid-template-rows:auto 1fr; }
@@ -204,6 +221,7 @@
       <p>Rooms are opened with a key that never leaves your browser. The server
          stores scrambled text it cannot read, and forgets all of it after a day.</p>
       <div class="win__actions"><button id="mkroom" class="btn btn--amber" type="button">Open a new room</button></div>
+      <div class="field" style="margin-top:14px"><label style="font-family:var(--label);font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Recent rooms on this browser</label><ul class="rooms" id="gate-rooms"></ul></div>
       <input id="invite" readonly hidden>
     </div>
   </div>
@@ -224,6 +242,14 @@
           <span>Invite link</span>
           <input id="share" readonly>
         </label>
+        <div class="room-actions">
+          <button id="newroom" class="btn" type="button" title="Open a fresh room with a new key.">new room</button>
+          <button id="leave" class="btn" type="button" title="Back to the entry screen. The room keeps existing for anyone who has the link.">leave</button>
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label>Recent rooms</label>
+          <ul class="rooms" id="rooms"></ul>
+        </div>
       </div>
     </section>
 
@@ -332,6 +358,50 @@ function nameFromURL() {
 function setFragment(keyB64, name) {
   const h = "#k=" + keyB64 + (name ? "&n=" + encodeURIComponent(name) : "");
   history.replaceState(null, "", location.pathname + location.search + h);
+}
+
+/* --- recent rooms: remembered in this browser only ------------------------
+   Keys and names, nothing else, in localStorage. Same sensitivity as the
+   browser's own history, which already holds every room link visited.   */
+const ROOMS_MAX = 8;
+function loadRooms() {
+  try { return JSON.parse(localStorage.getItem("rooms") || "[]"); } catch { return []; }
+}
+function saveRooms(list) { localStorage.setItem("rooms", JSON.stringify(list.slice(0, ROOMS_MAX))); }
+function rememberRoom(keyB64, name) {
+  const rest = loadRooms().filter((r) => r.k !== keyB64);
+  saveRooms([{ k: keyB64, n: name || "", t: Date.now() }, ...rest]);
+}
+function forgetRoom(keyB64) { saveRooms(loadRooms().filter((r) => r.k !== keyB64)); }
+function roomLink(r) { return location.pathname + "#k=" + r.k + (r.n ? "&n=" + encodeURIComponent(r.n) : ""); }
+// Changing only the fragment is a same-document hop, so the reload is what
+// actually loads the other room. pushState first so Back still works.
+function goRoom(r) { history.pushState(null, "", roomLink(r)); location.reload(); }
+
+// Draw the list into a <ul>. `here` = the key of the room currently open.
+function paintRooms(ul, here) {
+  const list = loadRooms();
+  ul.innerHTML = "";
+  if (!list.length) {
+    const p = document.createElement("li");
+    p.className = "rooms-empty"; p.textContent = "none yet";
+    ul.appendChild(p); return;
+  }
+  for (const r of list) {
+    const li = document.createElement("li");
+    const go = document.createElement("button");
+    go.type = "button"; go.className = "go" + (r.k === here ? " is-here" : "");
+    go.textContent = r.n || "unnamed room";
+    const when = document.createElement("small");
+    when.textContent = r.k === here ? "here" : r.k.slice(0, 6);
+    go.appendChild(when);
+    if (r.k !== here) go.onclick = () => goRoom(r);
+    const drop = document.createElement("button");
+    drop.type = "button"; drop.className = "drop"; drop.textContent = "\u00d7"; drop.title = "forget this room on this browser";
+    drop.onclick = () => { forgetRoom(r.k); paintRooms(ul, here); };
+    li.append(go, drop);
+    ul.appendChild(li);
+  }
 }
 
 // Make a fresh room and put its key in the address bar.
@@ -639,6 +709,7 @@ async function boot() {
   let raw = keyFromURL();
   if (!raw) {
     $("mkroom").onclick = () => { newRoom(); location.reload(); };
+    paintRooms($("gate-rooms"), null);
     return; // stay on the entry screen
   }
 
@@ -696,8 +767,16 @@ async function boot() {
     setFragment(keyB64, roomName);
     $("share").value = location.href;
     setTitle();
+    rememberRoom(keyB64, roomName);
+    paintRooms($("rooms"), keyB64);
   };
   $("share").value = location.href;
+  rememberRoom(keyB64, roomName);
+  paintRooms($("rooms"), keyB64);
+
+  // Switching rooms is a navigation: a new key means a new page.
+  $("newroom").onclick = () => { newRoom(); location.reload(); };
+  $("leave").onclick = () => { history.pushState(null, "", location.pathname); location.reload(); };
 
   const soundBtn = $("sound");
   const paintSound = () => { soundBtn.textContent = "sound: " + (soundOn() ? "on" : "off"); };

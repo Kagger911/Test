@@ -25,6 +25,8 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+      args:
+        BUILD: "${BUILD:-dev}"
     environment:
       REDIS_ADDR: "redis:6379"
     ports:

@@ -202,6 +202,38 @@ Not hidden:
 
 Removing the IP exposure requires an onion service, not a code change.
 
+## Trusting the client you were served
+
+This is a web app, so the encryption runs in code the server hands you. If
+the server, or anything between it and you, hands you different code, your
+browser will run that instead. No web-delivered E2E system escapes this;
+Signal's web client has the same property. What this project does about it:
+
+- **The client is one file, in a public repo.** `web/index.html` is all of
+  it. Nothing is bundled, minified or fetched from elsewhere.
+- **Every page tells you its commit.** The footer shows `BUILD <sha>`, served
+  from `/version`, baked into the binary at build time. Diff what you got:
+
+  ```bash
+  git show <sha>:kagchat/web/index.html | diff - <(curl -s https://chat.sleepdeprivationstation.com/)
+  ```
+
+  No output means byte-for-byte the published file.
+- **A strict Content-Security-Policy** is sent with the page: scripts,
+  styles, media and connections are same-origin only. Anything injected
+  into the HTML in transit — a CDN's analytics beacon, for example — is
+  refused by the browser even if it reaches you. Check with the Network tab:
+  there should be exactly one host.
+- **The relay never logs an IP**, and Cloudflare's optional injections must
+  stay off for this hostname: Web Analytics, Rocket Loader, email
+  obfuscation and the JS challenge. The CSP blocks their scripts anyway, but
+  a page that tries to load a beacon and is refused still looks wrong in a
+  network log.
+
+What it does not do: prove the relay operator is honest. A malicious
+operator could serve a client that leaks keys. The build tag and the diff
+above make that visible after the fact, not impossible.
+
 ## Deliberate omissions
 
 Do not add these without understanding what they cost:
@@ -224,3 +256,12 @@ Do not add these without understanding what they cost:
   Older browsers still work, but their messages show a red `?` next to the
   nickname and cannot be verified.
 - No moderation tools. Anyone with the link can post until you rotate the room.
+- **No forward secrecy.** One static key per room. Anyone who obtains the link
+  can read everything still in the 24h window and everything after. Rotating
+  the room (new link) is the only remedy. A ratcheting scheme would fix this
+  and is a large change.
+- Signatures are bound to the room id, so a message signed in one room does
+  not verify in another, and each browser paints a given signature once per
+  session, so re-sending an old blob does not produce a second message. This
+  is per-browser and per-session; it is a nuisance guard, not a protocol
+  guarantee.

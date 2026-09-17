@@ -127,6 +127,37 @@ type server struct {
 	rdb *redis.Client
 }
 
+// build is the git commit the image was built from, set by the Dockerfile
+// via -ldflags "-X main.build=...". Served at /version so anyone can diff
+// the HTML they were given against that exact commit in the repo.
+var build = "dev"
+
+// secure wraps the file server with headers that make the browser refuse
+// anything the page did not ship with. The important one is the CSP:
+// scripts, styles, media and connections are same-origin only, so a tag
+// injected in transit (a CDN's analytics beacon, for instance) is blocked
+// by the browser even if it makes it into the HTML. Anything in front of
+// this server could still strip the header; the client trust problem
+// does not go away, but this closes the accidental version of it.
+func secure(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		// 'self' does not reliably cover ws:/wss: in every browser, so the
+		// socket origin is spelled out from the Host the request came in on.
+		h.Set("Content-Security-Policy",
+			"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; "+
+				"connect-src 'self' ws://"+r.Host+" wss://"+r.Host+"; media-src 'self'; img-src 'self' data:; "+
+				"base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		h.Set("Cache-Control", "no-store")
+		h.Set("X-Kagchat-Build", build)
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	addr := envOr("LISTEN_ADDR", ":8080")
 	redisAddr := envOr("REDIS_ADDR", "127.0.0.1:6379")
@@ -152,8 +183,12 @@ func main() {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(build))
+	})
 	// Serve the client from ./web so the whole thing is one container.
-	mux.Handle("/", http.FileServer(http.Dir("./web")))
+	mux.Handle("/", secure(http.FileServer(http.Dir("./web"))))
 
 	log.Printf("listening on %s", addr)
 	srv := &http.Server{

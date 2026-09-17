@@ -14,6 +14,8 @@
 # quietly fetching a newer toolchain.
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
 ARG TARGETARCH
+# Git commit this image is built from; deploy.sh and compose pass it in.
+ARG BUILD=dev
 
 WORKDIR /src
 
@@ -25,7 +27,7 @@ COPY server/main.go ./
 # CGO off = a fully static binary that runs in an empty image.
 # -s -w strips debug symbols, roughly halving the binary.
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /out/kagchat .
+    go build -trimpath -ldflags="-s -w -X main.build=$BUILD" -o /out/kagchat .
 
 FROM scratch
 COPY --from=build /out/kagchat /kagchat

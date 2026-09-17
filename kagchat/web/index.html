@@ -296,7 +296,7 @@
 
 <footer class="footer">
   <span><strong>Sleep Deprivation Station</strong> &nbsp;//&nbsp; kagchat</span>
-  <span>You are a person. You are loved. <code>E2E</code></span>
+  <span>You are a person. You are loved. <code>BUILD <span id="build">…</span></code></span>
 </footer>
 
 <script>
@@ -491,20 +491,22 @@ async function open(key, blob) {
 /* --- signing -------------------------------------------------------------- */
 
 // What gets signed. Order matters: both sides must build this identically.
-const signedForm = (m) => enc.encode(`${m.ts}\u0000${m.nick}\u0000${m.text}`);
+// The room id is part of it, so a signature made for one room is not a
+// valid signature in any other room, even for someone who holds both keys.
+const signedForm = (ch, m) => enc.encode(`${ch}\u0000${m.ts}\u0000${m.nick}\u0000${m.text}`);
 
-async function sign(priv, m) {
+async function sign(priv, ch, m) {
   if (!canSign) return null;
-  const sig = await crypto.subtle.sign("Ed25519", priv, signedForm(m));
+  const sig = await crypto.subtle.sign("Ed25519", priv, signedForm(ch, m));
   return b64u.from(sig);
 }
 
-async function verify(m) {
+async function verify(ch, m) {
   if (!m.pub || !m.sig) return false;
   try {
     const pub = await crypto.subtle.importKey(
       "raw", b64u.to(m.pub), { name: "Ed25519" }, true, ["verify"]);
-    return await crypto.subtle.verify("Ed25519", pub, b64u.to(m.sig), signedForm(m));
+    return await crypto.subtle.verify("Ed25519", pub, b64u.to(m.sig), signedForm(ch, m));
   } catch { return false; }
 }
 
@@ -674,6 +676,16 @@ function playIntro(ch) {
   });
 }
 
+/* --- build tag: which commit of the repo is serving you ------------------ */
+
+// Same host as everything else. Lets anyone diff the HTML they received
+// against that commit in the public repo, which is the only real answer
+// to "how do I know the client I was served is the one you published".
+fetch("version", { cache: "no-store" })
+  .then((r) => r.text())
+  .then((v) => { $("build").textContent = v.trim().slice(0, 12) || "unknown"; })
+  .catch(() => { $("build").textContent = "unknown"; });
+
 /* --- countdown ------------------------------------------------------------ */
 
 // Counts down from 24h to show when the room starts forgetting. Restarts on
@@ -795,11 +807,20 @@ async function boot() {
 
   // live=true for a message that just arrived; false for scrollback, which
   // must never count as unread or make a sound.
+  // Replay guard: a signed message is painted once per session. Anyone
+  // holding the link can re-send an old ciphertext blob verbatim; without
+  // this it would show up again, signature intact, looking freshly sent.
+  const seenSigs = new Set();
+
   async function show(blob, live) {
     const m = await open(key, blob);
     if (!m) return; // not ours to read
+    if (m.sig) {
+      if (seenSigs.has(m.sig)) return;
+      seenSigs.add(m.sig);
+    }
     decayFrom = Date.now();
-    paint(m, await verify(m));
+    paint(m, await verify(ch, m));
     if (live && away()) { unread++; setTitle(); ping(); }
   }
 
@@ -821,7 +842,7 @@ async function boot() {
     const m = { ts: Date.now(), nick: nickBox.value.trim() || "anon", text: e.target.value };
     e.target.value = "";
     m.pub = pubB64;
-    m.sig = canSign ? await sign(pair.privateKey, m) : null;
+    m.sig = canSign ? await sign(pair.privateKey, ch, m) : null;
     sock.send(JSON.stringify({ op: "msg", ch, body: await seal(key, m) }));
   };
 }

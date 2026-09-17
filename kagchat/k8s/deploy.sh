@@ -31,7 +31,9 @@ else
 fi
 
 echo "== building amd64 + arm64 and pushing $IMAGE"
+BUILD=$(git rev-parse --short=12 HEAD 2>/dev/null || echo dev)
 docker buildx build --builder kagbuilder -f server/Dockerfile \
+  --build-arg BUILD="$BUILD" \
   --platform linux/amd64,linux/arm64 -t "$IMAGE" --push .
 
 echo "== applying manifests"

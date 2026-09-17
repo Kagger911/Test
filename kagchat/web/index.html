@@ -7,10 +7,11 @@
 <title>kagchat</title>
 
 <!--
-  PRIVACY CONSTRAINT: this file loads nothing from the network except its own
-  WebSocket. No web fonts, no CDN, no analytics. A single external request
-  would hand your visitor list to a third party, which would undo the point of
-  encrypting the messages. If you add a library, vendor it into this file.
+  PRIVACY CONSTRAINT: this file talks to exactly one host: the one that served
+  it. Its WebSocket and join.mp3 (the intro sound) come from the same relay.
+  No web fonts, no CDN, no analytics. A single request to a third party would
+  hand them your visitor list, which would undo the point of encrypting the
+  messages. If you add a library, vendor it into this file.
 -->
 
 <style>
@@ -508,6 +509,27 @@ function ping() {
   });
 }
 
+/* --- intro: a short riff when you enter a room --------------------------- */
+
+// Served by the same relay as this page (no third party). Once per room per
+// tab, so a reload does not play it again; obeys the sound toggle. Browsers
+// refuse audio before the first click or key, so if play() is rejected the
+// riff waits for the first gesture instead of being lost.
+const intro = new Audio("join.mp3");
+intro.preload = "auto";
+intro.volume = 0.6;
+
+function playIntro(ch) {
+  const seen = "intro:" + ch;
+  if (!soundOn() || sessionStorage.getItem(seen)) return;
+  const attempt = () => intro.play().then(() => sessionStorage.setItem(seen, "1"));
+  attempt().catch(() => {
+    const once = () => { attempt().catch(() => {}); };
+    document.addEventListener("pointerdown", once, { once: true });
+    document.addEventListener("keydown", once, { once: true });
+  });
+}
+
 /* --- countdown ------------------------------------------------------------ */
 
 // Counts down from 24h to show when the room starts forgetting. Restarts on
@@ -627,6 +649,8 @@ async function boot() {
     paint(m, await verify(m));
     if (live && away()) { unread++; setTitle(); ping(); }
   }
+
+  playIntro(ch);
 
   connect(ch, async (f) => {
     // msgs is `omitempty` on the wire, so an empty room sends no array at

@@ -73,8 +73,10 @@ never reaches the server either. It is a label, not a credential: knowing a
 room's name opens nothing without its key.
 
 While a tab is in the background, the title shows an unread count and a soft
-synthesised tone plays on arrival (no audio file; this page loads nothing).
-**sound: on/off** in the rail mutes it per browser.
+synthesised tone plays on arrival. Entering a room plays a short riff
+(`web/join.mp3`, served by the relay itself — still no third party), once per
+room per tab, at 60% volume. **sound: on/off** in the rail mutes both, per
+browser.
 
 To confirm the server really cannot read anything:
 
@@ -189,7 +191,8 @@ Do not add these without understanding what they cost:
 - **IP-based rate limiting.** Would require storing IPs. The limiter is keyed
   to the socket instead.
 - **Web fonts or CDN assets.** One external request hands your visitor list to
-  a third party and undoes the encryption work.
+  a third party and undoes the encryption work. The intro sound is fine
+  because the relay serves it; a sound hosted anywhere else would not be.
 - **Redis persistence.** Turning it on puts readable-by-nobody blobs on eMMC
   and creates something seizable.
 

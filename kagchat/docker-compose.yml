@@ -10,6 +10,7 @@
 services:
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     command: ["--save", "", "--appendonly", "no", "--maxmemory", "256mb"]
     # The relay exits if Redis is not answering when it starts, so wait for a
     # PONG rather than for the container to merely exist.
@@ -20,6 +21,7 @@ services:
       retries: 15
 
   relay:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: server/Dockerfile

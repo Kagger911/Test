@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -132,6 +133,11 @@ type server struct {
 // the HTML they were given against that exact commit in the repo.
 var build = "dev"
 
+// onion is the service's .onion hostname, if one exists (ONION_ADDR, set
+// by k8s/onion.sh). When set, clearnet responses carry an Onion-Location
+// header, which Tor Browser turns into a ".onion available" prompt.
+var onion = os.Getenv("ONION_ADDR")
+
 // secure wraps the file server with headers that make the browser refuse
 // anything the page did not ship with. The important one is the CSP:
 // scripts, styles, media and connections are same-origin only, so a tag
@@ -154,6 +160,9 @@ func secure(next http.Handler) http.Handler {
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		h.Set("Cache-Control", "no-store")
 		h.Set("X-Kagchat-Build", build)
+		if onion != "" && !strings.HasSuffix(r.Host, ".onion") {
+			h.Set("Onion-Location", "http://"+onion+r.URL.RequestURI())
+		}
 		next.ServeHTTP(w, r)
 	})
 }

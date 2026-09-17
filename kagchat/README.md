@@ -161,6 +161,26 @@ sudo systemctl restart cloudflared
 Then, when the site is confirmed working on the cluster, retire the compose
 stack: `docker compose down`.
 
+### 5. Onion service (optional, for anonymity)
+
+```bash
+./k8s/onion.sh
+```
+
+Installs Tor on Erebus, adds a hidden service pointing at the cluster's
+NodePort, and prints the `.onion` address. Same relay, same rooms, but a user
+on Tor Browser is not identifiable by anyone in the path: Cloudflare is not
+involved, Erebus sees a Tor circuit instead of an IP, and their ISP sees Tor
+rather than this site. The clearnet address keeps working and now sends an
+`Onion-Location` header, so Tor Browser offers the `.onion` on its own.
+
+Tor Browser treats `.onion` over plain http as a secure context, so the
+encryption and the WebSocket work unchanged. Other browsers cannot open
+`.onion` addresses at all.
+
+The address is derived from a key in `/var/lib/tor/kagchat/`. Back that
+directory up if you want to keep the same address across an Erebus rebuild.
+
 ### Firewall
 
 Same class of problem that broke Grafana. `prep-boards.sh` opens these on
@@ -196,11 +216,12 @@ Hidden from the server and from anything in front of it:
 
 Not hidden:
 
-- your IP address, from whatever terminates the connection — currently
-  Cloudflare. Encryption cannot fix this.
-- that *someone* connected, when, and roughly how much they typed.
-
-Removing the IP exposure requires an onion service, not a code change.
+- your IP address, from whatever terminates the connection — Cloudflare on
+  the clearnet address. Encryption cannot fix this. **The `.onion` address
+  does** (step 5 above): use it from Tor Browser and no one in the path has
+  your IP.
+- that *someone* connected, when, and roughly how much they typed. Tor
+  hides most of this too; fully hiding it would need padded traffic.
 
 ## Trusting the client you were served
 

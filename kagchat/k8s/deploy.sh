@@ -39,6 +39,11 @@ docker buildx build --builder kagbuilder -f server/Dockerfile \
 echo "== applying manifests"
 sudo kubectl apply -f k8s/kagchat.yaml >/dev/null
 
+# Keep the onion address on the deployment across applies, if there is one.
+if sudo test -f /var/lib/tor/kagchat/hostname 2>/dev/null; then
+  sudo kubectl -n kagchat set env deploy/relay ONION_ADDR="$(sudo cat /var/lib/tor/kagchat/hostname)" >/dev/null
+fi
+
 echo "== rolling the relay onto the new image"
 sudo kubectl -n kagchat rollout restart deploy/relay >/dev/null
 sudo kubectl -n kagchat rollout status deploy/relay --timeout=180s

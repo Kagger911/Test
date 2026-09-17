@@ -547,12 +547,18 @@ window.addEventListener("focus", clearUnread);
 let audio = null;
 let lastPing = 0;
 const soundOn = () => localStorage.getItem("sound") !== "off";
+// Browsers only allow sound after a real interaction, and which events
+// count differs (iOS Safari wants click/touchend, not pointerdown). Listen
+// to all of them, and resume the context *inside* the gesture, which is
+// the only place iOS honours it.
+const GESTURES = ["click", "touchend", "keydown"];
 function armAudio() {
-  if (audio || !("AudioContext" in window)) return;
-  audio = new AudioContext();
+  if (!("AudioContext" in window)) return;
+  if (!audio) audio = new AudioContext();
+  if (audio.state === "suspended") audio.resume().catch(() => {});
+  if (audio.state === "running") GESTURES.forEach((ev) => document.removeEventListener(ev, armAudio));
 }
-document.addEventListener("keydown", armAudio, { once: true });
-document.addEventListener("pointerdown", armAudio, { once: true });
+GESTURES.forEach((ev) => document.addEventListener(ev, armAudio));
 
 function ping() {
   if (!soundOn() || !audio) return;
@@ -586,11 +592,15 @@ intro.volume = 0.6;
 function playIntro(ch) {
   const seen = "intro:" + ch;
   if (!soundOn() || sessionStorage.getItem(seen)) return;
-  const attempt = () => intro.play().then(() => sessionStorage.setItem(seen, "1"));
+  const attempt = () => intro.play().then(() => {
+    sessionStorage.setItem(seen, "1");
+    GESTURES.forEach((ev) => document.removeEventListener(ev, onGesture));
+  });
+  const onGesture = () => { attempt().catch(() => {}); };
   attempt().catch(() => {
-    const once = () => { attempt().catch(() => {}); };
-    document.addEventListener("pointerdown", once, { once: true });
-    document.addEventListener("keydown", once, { once: true });
+    // Not allowed yet: no interaction on this page. Retry on each one
+    // until a browser lets it through, then stop listening.
+    GESTURES.forEach((ev) => document.addEventListener(ev, onGesture));
   });
 }
 

@@ -35,12 +35,11 @@ Requires Docker. Nothing else.
 docker compose up --build
 ```
 
-It listens on host port **8081** (Pi-hole has 8080 on Erebus). The port lives in
-`.env` next to this file; to move it, overwrite that file and restart:
+It listens on host port **8081** (Pi-hole has 8080 on Erebus). To use a
+different port for one run:
 
 ```bash
-echo KAGCHAT_PORT=8090 > .env
-docker compose down && docker compose up --build
+KAGCHAT_PORT=8090 docker compose up --build
 ```
 
 Open <http://localhost:8081>, click **Open a new room**, then paste the same

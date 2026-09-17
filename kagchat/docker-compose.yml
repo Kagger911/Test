@@ -1,0 +1,35 @@
+# Local test stack. Run this before touching the cluster.
+#
+#   docker compose up --build
+#   open http://localhost:8080
+#
+# If 8080 is already taken on the host (check with `ss -lntp | grep :8080`),
+# pick another port without editing this file:
+#
+#   KAGCHAT_PORT=8081 docker compose up --build
+#
+# Redis here matches the cluster config: memory only, nothing on disk.
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["--save", "", "--appendonly", "no", "--maxmemory", "256mb"]
+    # The relay exits if Redis is not answering when it starts, so wait for a
+    # PONG rather than for the container to merely exist.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  relay:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      REDIS_ADDR: "redis:6379"
+    ports:
+      - "${KAGCHAT_PORT:-8080}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy

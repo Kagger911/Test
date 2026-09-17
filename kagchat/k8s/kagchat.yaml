@@ -1,0 +1,128 @@
+# kagchat on K3s.
+#
+# BEFORE APPLYING, label the nodes you want this to run on:
+#
+#   for n in goon-vim3-1 goon-vim3-2 goon-vim3-3 goon-vim3-4; do
+#     kubectl label node $n sds.role=chat
+#   done
+#
+# Everything below is pinned to that label, so nothing can drift onto Erebus,
+# Minos, Rhadamantus or Aeacus. Remove the label from a node to drain it.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kagchat
+
+---
+# ---------------------------------------------------------------------------
+# Redis. Holds ciphertext for 24 hours, in memory only.
+#
+# Persistence is OFF on purpose, for two reasons:
+#   1. eMMC on the VIM3 boards has limited write endurance.
+#   2. Nothing on disk means a seized or stolen board contains no history.
+# The cost: restarting this pod wipes scrollback. With a 24h TTL you were
+# losing it anyway.
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: kagchat
+spec:
+  replicas: 1                 # do not scale this; there is no clustering here
+  strategy:
+    type: Recreate            # never run two at once fighting over the port
+  selector:
+    matchLabels: { app: redis }
+  template:
+    metadata:
+      labels: { app: redis }
+    spec:
+      nodeSelector:
+        sds.role: chat
+      containers:
+        - name: redis
+          image: redis:7-alpine   # official image is already multi-arch
+          args:
+            - "--save"            # disable RDB snapshots
+            - ""
+            - "--appendonly"
+            - "no"                # disable the append-only log
+            - "--maxmemory"
+            - "256mb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"       # shed oldest rooms rather than erroring
+          ports:
+            - containerPort: 6379
+          resources:
+            requests: { cpu: "50m",  memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "320Mi" }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: kagchat
+spec:
+  selector: { app: redis }
+  ports:
+    - port: 6379
+      targetPort: 6379
+
+---
+# ---------------------------------------------------------------------------
+# The relay. Stateless, so replicas are free and any pod can serve any user.
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relay
+  namespace: kagchat
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: relay }
+  template:
+    metadata:
+      labels: { app: relay }
+    spec:
+      nodeSelector:
+        sds.role: chat
+      # Spread the three pods across three different boards, so losing one
+      # board does not take out the whole room.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: relay }
+      containers:
+        - name: relay
+          image: ghcr.io/kagger911/kagchat:latest   # <-- change to your registry
+          env:
+            - name: REDIS_ADDR
+              value: "redis.kagchat.svc.cluster.local:6379"
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "50m",  memory: "32Mi" }
+            limits:   { cpu: "1",    memory: "128Mi" }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: relay
+  namespace: kagchat
+spec:
+  type: NodePort
+  selector: { app: relay }
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080     # cloudflared points here

@@ -84,6 +84,14 @@
   #decay small { color: var(--dim); font-size: 12px; }
 
   #fp { font-family: var(--mono); font-size: 12px; color: var(--dim); word-break: break-all; }
+  #newfp {
+    margin-top: 6px; padding: 4px 8px; font: inherit; font-size: 11px;
+    background: transparent; color: var(--dim);
+    border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+  }
+  #newfp:hover { color: var(--text); border-color: var(--dim); }
+  #newfp:focus-visible { outline: 2px solid var(--sodium); outline-offset: 1px; }
+  #newfp:disabled { opacity: 0.45; cursor: default; }
 
   /* --- message river ---------------------------------------------------- */
   #river { display: flex; flex-direction: column; min-width: 0; }
@@ -176,6 +184,7 @@
     <div class="field">
       <label>Your fingerprint</label>
       <div id="fp">generating</div>
+      <button id="newfp" type="button" title="Make a new signing key. Messages you already sent keep the old fingerprint.">new fingerprint</button>
     </div>
 
     <div id="decay">
@@ -274,12 +283,15 @@ function idbOp(mode, fn) {
 // but messages go out unsigned and every client marks them with a "?".
 let canSign = true;
 
-async function loadIdentity() {
-  const saved = await idbOp("readonly", (s) => s.get("pair")).catch(() => null);
-  if (saved) return saved;
+async function newIdentity() {
   const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
   await idbOp("readwrite", (s) => s.put(pair, "pair"));
   return pair;
+}
+
+async function loadIdentity() {
+  const saved = await idbOp("readonly", (s) => s.get("pair")).catch(() => null);
+  return saved || newIdentity();
 }
 
 /* --- message encryption --------------------------------------------------- */
@@ -467,10 +479,30 @@ async function boot() {
     note("This browser cannot sign messages. Yours will show as unverified.", true);
   }
 
-  const pubB64 = canSign
+  let pubB64 = canSign
     ? b64u.from(await crypto.subtle.exportKey("raw", pair.publicKey))
     : null;
   $("fp").textContent = pubB64 ? shortFP(pubB64) : "unavailable";
+
+  // Rotate the signing key. The old one is overwritten in IndexedDB, so
+  // this is one-way: messages already sent keep the old fingerprint and
+  // will still verify (their public key travels with them), but nothing
+  // new can be signed as the old identity again.
+  const newfp = $("newfp");
+  if (!canSign) newfp.disabled = true;
+  newfp.onclick = async () => {
+    newfp.disabled = true;
+    try {
+      pair = await newIdentity();
+      pubB64 = b64u.from(await crypto.subtle.exportKey("raw", pair.publicKey));
+      $("fp").textContent = shortFP(pubB64);
+      note("New fingerprint: " + shortFP(pubB64) + ". Earlier messages keep the old one.");
+    } catch {
+      note("Could not make a new key.", true);
+    } finally {
+      newfp.disabled = false;
+    }
+  };
 
   const key = await aesKey(raw);
   const ch = await roomID(raw);

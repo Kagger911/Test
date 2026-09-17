@@ -1,0 +1,7 @@
+# Config for the buildx builder on Erebus. BuildKit pushes straight to the
+# registry itself (not through dockerd), so it is BuildKit that has to be
+# told the registry is plain http. Nothing in /etc/docker changes, so the
+# Docker daemon never restarts and Pi-hole never blinks.
+[registry."10.0.0.202:5000"]
+  http = true
+  insecure = true

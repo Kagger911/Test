@@ -100,7 +100,9 @@ spec:
             matchLabels: { app: relay }
       containers:
         - name: relay
-          image: ghcr.io/kagger911/kagchat:latest   # <-- change to your registry
+          image: 10.0.0.202:5000/kagchat:latest   # the registry container on Erebus
+          # Always: the tag never changes, so a rollout restart must re-pull.
+          imagePullPolicy: Always
           env:
             - name: REDIS_ADDR
               value: "redis.kagchat.svc.cluster.local:6379"

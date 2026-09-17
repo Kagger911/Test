@@ -1,0 +1,7 @@
+# Installed on every node that runs kagchat pods (the four VIM3s), at
+# /etc/rancher/k3s/registries.yaml. Tells K3s that the registry on Erebus
+# speaks plain http on the LAN. prep-boards.sh puts this in place.
+mirrors:
+  "10.0.0.202:5000":
+    endpoint:
+      - "http://10.0.0.202:5000"

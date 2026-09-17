@@ -25,6 +25,8 @@ from `server/`.
 | `web/index.html` | The whole client. All encryption happens here. |
 | `server/Dockerfile` | Multi-arch build (amd64 + arm64). |
 | `k8s/kagchat.yaml` | Redis + 3 relay pods, pinned to labelled nodes. |
+| `k8s/prep-boards.sh` | One-time board setup: registry trust, firewall, label. |
+| `k8s/deploy.sh` | Build for arm64, push to the Erebus registry, roll the pods. |
 | `docker-compose.yml` | Local test stack. Start here. |
 
 ## Run it locally first
@@ -91,71 +93,80 @@ stored.
 Stop with `docker compose down`. Redis is memory-only, so that erases
 everything.
 
-## Build and push
+## Moving it onto the VIM3s
 
-The cluster is mixed architecture. A single-arch image will crash-loop on half
-the nodes with `exec format error`, so build both:
+Erebus is the K3s control plane; the four boards are arm64 workers. Three
+scripts in `k8s/` do the whole move from Erebus. `kubectl` needs `sudo` there;
+the scripts already include it.
 
-Run from the `kagchat/` directory, not from `server/`.
+### 1. A registry on Erebus (once)
 
-```bash
-docker buildx create --use --name kagbuilder   # once
-
-docker buildx build -f server/Dockerfile \
-  --platform linux/amd64,linux/arm64 \
-  -t ghcr.io/kagger911/kagchat:latest \
-  --push .
-```
-
-Change the image name in `k8s/kagchat.yaml` to match.
-
-Erebus is amd64 and the VIM3s are arm64, so the arm64 half of that build needs
-emulation registered once per boot:
+The boards need somewhere to pull the image from. One container, LAN only, no
+accounts. Check the port is free first:
 
 ```bash
-docker run --privileged --rm tonistiigi/binfmt --install all
+ss -lntp | grep :5000 || echo "5000 is free"
+docker run -d --name registry --restart=always -p 5000:5000 \
+  -v registry-data:/var/lib/registry registry:2
 ```
 
-A two-platform build will saturate every core on Erebus for a minute or two.
-Palworld players will feel it.
-
-## Deploy
+### 2. Prep the boards (once)
 
 ```bash
-for n in goon-vim3-1 goon-vim3-2 goon-vim3-3 goon-vim3-4; do
-  kubectl label node $n sds.role=chat
-done
-
-kubectl apply -f k8s/kagchat.yaml
-kubectl -n kagchat rollout status deploy/relay
+./k8s/prep-boards.sh
 ```
 
-## Expose through the existing tunnel
+Per board: installs `k8s/registries.yaml` so K3s trusts the registry over
+plain http, restarts the agent, opens the firewall ports if ufw is on, and
+labels the node `sds.role=chat`. Everything in the manifest is pinned to that
+label, so nothing drifts onto Erebus, Minos, Rhadamantus or Aeacus. `sudo` on
+a board may ask for a password.
 
-Add to `config.yml` on Erebus, alongside the `watch.` and `request.` entries:
-
-```yaml
-  - hostname: chat.sleepdeprivationstation.com
-    service: http://10.0.0.202:30080
-```
-
-Then `systemctl restart cloudflared` and add the DNS route.
-
-## Firewall
-
-Same class of problem that broke Grafana. On every node carrying a relay pod:
+### 3. Build, push, deploy (every time the code changes)
 
 ```bash
-sudo ufw allow 8472/udp        # flannel VXLAN
-sudo ufw allow 10250/tcp       # kubelet
+./k8s/deploy.sh
+```
+
+Builds the image for amd64 + arm64, pushes it to the registry, applies the
+manifests, restarts the relay pods onto the new image, and hits `/healthz`
+through the NodePort. No QEMU: the Dockerfile compiles Go natively for arm64
+and only the empty final image is arm64, so the build costs Erebus a normal Go
+compile, nothing more.
+
+First run creates a buildx builder using `k8s/buildkitd.toml`, which tells
+BuildKit the registry is http. Nothing under `/etc/docker` changes, so the
+Docker daemon is never restarted and Pi-hole never blinks.
+
+### 4. Repoint the tunnel
+
+The compose stack on `:8081` and the cluster on `:30080` can run side by side.
+Once `deploy.sh` reports `healthz via NodePort on Erebus: 200`:
+
+```bash
+sudo sed -i 's|service: http://localhost:8081|service: http://localhost:30080|' /etc/cloudflared/config.yml
+cloudflared tunnel ingress validate
+sudo systemctl restart cloudflared
+```
+
+Then, when the site is confirmed working on the cluster, retire the compose
+stack: `docker compose down`.
+
+### Firewall
+
+Same class of problem that broke Grafana. `prep-boards.sh` opens these on
+each board when ufw is active; here they are for reference:
+
+```bash
+sudo ufw allow 8472/udp            # flannel VXLAN
+sudo ufw allow 10250/tcp           # kubelet
 sudo ufw allow from 10.42.0.0/16   # pod CIDR
 sudo ufw allow from 10.43.0.0/16   # service CIDR
-sudo ufw allow 30080/tcp       # this NodePort
-sudo ufw reload
+sudo ufw allow 30080/tcp           # this NodePort
 ```
 
-Without these, messages will appear to deliver only when both users happen to
-be served by pods on the same board.
+Without these, messages appear to deliver only when both users happen to be
+served by pods on the same board.
 
 ## Using it
 

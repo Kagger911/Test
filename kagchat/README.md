@@ -27,6 +27,7 @@ from `server/`.
 | `k8s/kagchat.yaml` | Redis + 3 relay pods, pinned to labelled nodes. |
 | `k8s/prep-boards.sh` | One-time board setup: registry trust, firewall, label. |
 | `k8s/deploy.sh` | Build for arm64, push to the Erebus registry, roll the pods. |
+| `k8s/move.sh` | All of the above plus the tunnel switch, in one run. |
 | `docker-compose.yml` | Local test stack. Start here. |
 
 ## Run it locally first
@@ -95,9 +96,17 @@ everything.
 
 ## Moving it onto the VIM3s
 
-Erebus is the K3s control plane; the four boards are arm64 workers. Three
-scripts in `k8s/` do the whole move from Erebus. `kubectl` needs `sudo` there;
-the scripts already include it.
+Erebus is the K3s control plane; the four boards are arm64 workers. One
+command does the whole move from Erebus:
+
+```bash
+./k8s/move.sh
+```
+
+It runs the four steps below in order and stops at the first that fails; the
+compose stack on `:8081` is never touched, so a failed run changes nothing for
+users. The steps are also runnable on their own. `kubectl` needs `sudo` on
+Erebus; the scripts include it.
 
 ### 1. A registry on Erebus (once)
 

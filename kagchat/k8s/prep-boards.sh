@@ -8,6 +8,7 @@
 #             open the firewall ports the pods need (only if ufw is active),
 #             label the node sds.role=chat so the manifest can pin to it.
 set -u
+failed=0
 BOARDS="goon-vim3-1=10.0.0.165 goon-vim3-2=10.0.0.192 goon-vim3-3=10.0.0.19 goon-vim3-4=10.0.0.26"
 USER_ON_BOARD=goon
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -16,7 +17,7 @@ for pair in $BOARDS; do
   name="${pair%%=*}"; ip="${pair##*=}"
   echo
   echo "=== $name ($ip) ==="
-  scp -q "$HERE/registries.yaml" "$USER_ON_BOARD@$ip:/tmp/registries.yaml" || { echo "   scp failed, skipping"; continue; }
+  scp -q "$HERE/registries.yaml" "$USER_ON_BOARD@$ip:/tmp/registries.yaml" || { echo "   scp failed, skipping"; failed=1; continue; }
   # -t so sudo can ask for a password if the board wants one
   ssh -t "$USER_ON_BOARD@$ip" '
     set -e
@@ -33,10 +34,11 @@ for pair in $BOARDS; do
       echo "   ufw: not active, nothing to open"
     fi
     echo "   registry trust installed, k3s-agent restarted"
-  ' || { echo "   ssh step failed on $name"; continue; }
+  ' || { echo "   ssh step failed on $name"; failed=1; continue; }
   sudo kubectl label node "$name" sds.role=chat --overwrite >/dev/null && echo "   labelled sds.role=chat"
 done
 
 echo
 echo "Labelled nodes:"
 sudo kubectl get nodes -l sds.role=chat -o custom-columns=NAME:.metadata.name,ARCH:.status.nodeInfo.architecture,READY:.status.conditions[-1].type
+[ "$failed" = 0 ] || { echo; echo "one or more boards failed, see above"; exit 1; }

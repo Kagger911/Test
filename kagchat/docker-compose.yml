@@ -1,12 +1,9 @@
 # Local test stack. Run this before touching the cluster.
 #
 #   docker compose up --build
-#   open http://localhost:8080
+#   open http://localhost:8081
 #
-# If 8080 is already taken on the host (check with `ss -lntp | grep :8080`),
-# pick another port without editing this file:
-#
-#   KAGCHAT_PORT=8081 docker compose up --build
+# Host port comes from .env next to this file (KAGCHAT_PORT, default 8081).
 #
 # Redis here matches the cluster config: memory only, nothing on disk.
 

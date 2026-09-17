@@ -32,17 +32,18 @@ from `server/`.
 Requires Docker. Nothing else.
 
 ```bash
-ss -lntp | grep :8080        # Erebus already runs Palworld and cloudflared
 docker compose up --build
 ```
 
-If something already holds 8080, pick another port without editing any file:
+It listens on host port **8081** (Pi-hole has 8080 on Erebus). The port lives in
+`.env` next to this file; to move it, overwrite that file and restart:
 
 ```bash
-KAGCHAT_PORT=8081 docker compose up --build
+echo KAGCHAT_PORT=8090 > .env
+docker compose down && docker compose up --build
 ```
 
-Open <http://localhost:8080>, click **Open a new room**, then paste the same
+Open <http://localhost:8081>, click **Open a new room**, then paste the same
 URL into a second browser window. Both windows are now in the same room.
 
 Testing from another machine, do **not** browse to `http://10.0.0.202:8081`.
@@ -61,7 +62,7 @@ the tunnel on https it is a secure context and the restriction disappears.
 The address bar will look like:
 
 ```
-http://localhost:8080/#k=xkQ2...43-characters...9fA
+http://localhost:8081/#k=xkQ2...43-characters...9fA
 ```
 
 Everything after the `#` is the room key. Browsers never send that part to the

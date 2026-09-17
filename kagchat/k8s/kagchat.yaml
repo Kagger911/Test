@@ -41,6 +41,17 @@ spec:
     spec:
       nodeSelector:
         sds.role: chat
+      # If this node drops off the cluster, give up on it after 20s instead
+      # of the default 5 minutes, so the pod is rescheduled on another board.
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 20
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 20
       containers:
         - name: redis
           image: redis:7-alpine   # official image is already multi-arch
@@ -90,6 +101,17 @@ spec:
     spec:
       nodeSelector:
         sds.role: chat
+      # If this node drops off the cluster, give up on it after 20s instead
+      # of the default 5 minutes, so the pod is rescheduled on another board.
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 20
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 20
       # Spread the three pods across three different boards, so losing one
       # board does not take out the whole room.
       topologySpreadConstraints:
@@ -110,7 +132,8 @@ spec:
             - containerPort: 8080
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }
-            periodSeconds: 10
+            periodSeconds: 5
+            failureThreshold: 2
           resources:
             requests: { cpu: "50m",  memory: "32Mi" }
             limits:   { cpu: "1",    memory: "128Mi" }
@@ -128,3 +151,16 @@ spec:
     - port: 80
       targetPort: 8080
       nodePort: 30080     # cloudflared points here
+
+---
+# Never let a voluntary disruption (node drain, upgrade) take the relay
+# below two ready pods.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: relay
+  namespace: kagchat
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: { app: relay }

@@ -180,16 +180,30 @@ func main() {
 		rdb: redis.NewClient(&redis.Options{Addr: redisAddr}),
 	}
 
+	// Wait for Redis rather than die without it. If Redis is being moved to
+	// another node this pod would otherwise crash-loop with a growing backoff
+	// and take minutes to notice Redis is back; polling every 2s means it is
+	// serving again within seconds of Redis returning.
 	ctx := context.Background()
-	if err := s.rdb.Ping(ctx).Err(); err != nil {
-		log.Fatalf("redis unreachable at %s: %v", redisAddr, err)
+	for s.rdb.Ping(ctx).Err() != nil {
+		log.Printf("waiting for redis at %s", redisAddr)
+		time.Sleep(2 * time.Second)
 	}
 
 	go s.fanIn(ctx) // Redis -> local sockets
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.handleWS)
+	// Readiness: only claim healthy while Redis answers. A relay that cannot
+	// publish is worse than one fewer relay, so the Service stops routing new
+	// connections here until Redis is back. Existing sockets stay open.
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		pctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := s.rdb.Ping(pctx).Err(); err != nil {
+			http.Error(w, "redis: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {

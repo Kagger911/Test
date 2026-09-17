@@ -16,207 +16,262 @@
 
 <style>
   /* ---------------------------------------------------------------------
-     Design tokens. Change colours here, not further down.
+     SLEEP DEPRIVATION STATION skin, vendored. Same tokens and rules as the
+     site's styles.css (2003 forum: fixed column, 1px borders, bevels,
+     gradient bars, system fonts). Nothing is loaded from the site: this
+     page still makes no request but its own socket and join.mp3.
+     Bevel rule: border-color light on top/left, dark on bottom/right =
+     raised; swap the order = pressed / inset.
      --------------------------------------------------------------------- */
   :root {
-    --ink:      #14121C;  /* page ground: deep violet-black, 4am */
-    --panel:    #1C1927;  /* raised surfaces */
-    --line:     #2A2637;  /* hairlines */
-    --text:     #D7D3E2;  /* body */
-    --dim:      #797292;  /* metadata, timestamps */
-    --sodium:   #F0C05A;  /* single accent: sodium streetlight */
-    --alert:    #E0645C;  /* errors only */
-
-    --ui:   ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
-    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    --page-bg:#101216; --wrap-bg:#1b1e24; --panel:#22262e; --panel-alt:#282d37; --panel-dark:#15171c;
+    --border:#3a4150; --bevel-light:#4a5263; --bevel-dark:#0b0c0f;
+    --bar-top:#39404e; --bar-bottom:#272c36;
+    --text:#c9ced8; --muted:#8b93a1; --link:#8fb8ff;
+    --accent:#ffb84d; --ok:#7ecf6a; --warn:#e8c95a; --off:#d9705f; --term-green:#7ddb84;
+    --max:960px;
+    --ui:Verdana,Geneva,sans-serif; --label:Tahoma,Verdana,sans-serif; --mono:'Courier New',Courier,monospace;
   }
-
   * { box-sizing: border-box; }
-
-  /* #gate and #app both set display: below, which outranks the browser's own
-     [hidden] { display: none } rule. Without this, hidden="" is ignored and
-     the entry screen stays painted over the chat forever. */
   [hidden] { display: none !important; }
 
-  html, body {
-    margin: 0; height: 100%;
-    background: var(--ink); color: var(--text);
-    font-family: var(--ui);
-    font-size: 15px; line-height: 1.5;
+  html, body { height: 100%; }
+  body {
+    margin: 0; display: flex; flex-direction: column;
+    color: var(--text); font-family: var(--ui); font-size: 13px; line-height: 1.6;
+    background: var(--page-bg) repeating-linear-gradient(45deg,rgba(255,255,255,.015) 0 2px,transparent 2px 8px);
+  }
+  a { color: var(--link); }
+
+  /* --- ticker, header, creed (site furniture) ---------------------------- */
+  .broadcast { width:min(var(--max),100%); margin:0 auto; background:#000; color:var(--text); border:1px solid var(--border); border-bottom:0; font-family:var(--mono); font-size:12px; padding:5px 0; overflow:hidden; }
+  .broadcast span { color:var(--accent); font-weight:bold; }
+  .broadcast__track { display:inline-block; white-space:nowrap; padding-left:100%; animation:broadcast-scroll 28s linear infinite; }
+  .broadcast:hover .broadcast__track { animation-play-state:paused; }
+  @keyframes broadcast-scroll { to { transform:translateX(-100%); } }
+
+  .site-header { width:min(var(--max),100%); margin:0 auto; background:var(--panel); border:1px solid var(--border); border-bottom:2px solid var(--bevel-dark); }
+  .nav { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; padding:10px 14px; }
+  .logo { text-decoration:none; color:#e6e9ef; font-family:Impact,'Arial Black',sans-serif; font-size:1.35rem; letter-spacing:.05em; text-transform:uppercase; }
+  .logo:visited { color:#e6e9ef; }
+  .logo__mark { color:var(--accent); font-family:var(--mono); font-size:.85em; }
+  .tab {
+    display:inline-block; font-family:var(--label); font-size:11px; font-weight:bold; color:var(--text);
+    background:linear-gradient(var(--bar-top),var(--bar-bottom)); border:1px solid;
+    border-color:var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light); padding:6px 10px; text-decoration:none;
+  }
+  .tab:visited { color:var(--text); }
+  .tab:hover { background:var(--panel-alt); color:#fff; text-decoration:none; }
+  .tab--state { border-color:var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark); background:var(--panel-dark); color:var(--muted); }
+  .tab--state.is-on { color:var(--ok); }
+  .tab--state.is-off { color:var(--off); }
+
+  .creed { width:min(var(--max),100%); margin:0 auto; background:var(--panel-dark); border-left:1px solid var(--border); border-right:1px solid var(--border); text-align:center; padding:6px 12px; font-family:var(--label); font-size:11px; letter-spacing:.06em; color:var(--muted); }
+  .creed strong { color:var(--accent); }
+  .creed span { color:#6f7787; margin:0 6px; }
+
+  /* --- the column: rail + river ------------------------------------------ */
+  #app {
+    width:min(var(--max),100%); margin:0 auto; flex:1; min-height:0;
+    display:grid; grid-template-columns:236px 1fr;
+    background:var(--wrap-bg); border-left:1px solid var(--border); border-right:1px solid var(--border);
   }
 
-  /* Two panes: a narrow status rail, then the message river. */
-  #app { display: grid; grid-template-columns: 232px 1fr; height: 100%; }
-
-  /* --- left rail -------------------------------------------------------- */
-  #rail {
-    background: var(--panel);
-    border-right: 1px solid var(--line);
-    padding: 20px 18px;
-    display: flex; flex-direction: column; gap: 22px;
-    overflow-y: auto;
+  /* --- rail --------------------------------------------------------------- */
+  #rail { border-right:1px solid var(--border); padding:10px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+  #mark { display:none; }                         /* the header logo carries the mark now */
+  .bar {
+    background:linear-gradient(var(--bar-top),var(--bar-bottom)); border:1px solid var(--border); border-bottom-color:var(--bevel-dark);
+    font-family:var(--label); font-size:10px; font-weight:bold; text-transform:uppercase; letter-spacing:.08em; color:#e6e9ef;
+    padding:6px 9px; margin:0 0 6px;
   }
-
-  #mark { font-size: 19px; letter-spacing: -0.01em; font-weight: 600; }
-  #mark span { color: var(--sodium); }
-
-  .field { display: block; }
-  .field > label {
-    display: block; font-size: 12px; color: var(--dim); margin-bottom: 5px;
-  }
+  .panel { background:var(--panel); border:1px solid var(--border); padding:8px 9px 9px; }
+  .field { display:block; margin:0 0 8px; }
+  .field:last-child { margin-bottom:0; }
+  .field > span, .field > label { display:block; font-family:var(--label); font-size:10px; font-weight:bold; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:4px; }
   .field input {
-    width: 100%; padding: 7px 9px;
-    background: var(--ink); color: var(--text);
-    border: 1px solid var(--line); border-radius: 4px;
-    font: inherit;
+    width:100%; padding:6px 8px; font:inherit; font-size:12px; color:var(--text);
+    background:var(--panel-dark); border:1px solid; border-color:var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark); outline:none;
   }
-  .field input:focus { outline: 2px solid var(--sodium); outline-offset: 1px; }
+  .field input:focus { border-color:var(--accent); }
+  .field input[readonly] { color:var(--muted); font-family:var(--mono); font-size:11px; }
+  #fp { font-family:var(--mono); font-size:12px; color:var(--accent); word-break:break-all; margin-bottom:6px; }
 
-  /* The memorable element: the room's own countdown to forgetting. */
-  #decay {
-    border-top: 1px solid var(--line);
-    padding-top: 16px; margin-top: auto;
+  .btn {
+    display:inline-block; cursor:pointer; font-family:var(--label); font-size:11px; font-weight:bold; color:var(--text);
+    background:linear-gradient(var(--bar-top),var(--bar-bottom)); border:1px solid;
+    border-color:var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light); padding:6px 10px;
   }
-  #decay b {
-    display: block;
-    font-family: var(--mono); font-size: 26px; font-weight: 400;
-    color: var(--sodium); letter-spacing: -0.02em;
+  .btn:hover { background:var(--panel-alt); color:#fff; }
+  .btn:active { border-color:var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark); }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .btn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .btn--amber { background:linear-gradient(#c98a2e,#9a6716); border-color:#e0aa55 #5c3d0a #5c3d0a #e0aa55; color:#fff; font-size:12px; padding:8px 16px; }
+  .btn--amber:hover { background:linear-gradient(#d69a3d,#a8721c); }
+  .btn--block { width:100%; }
+
+  /* the memorable element: the room's own countdown to forgetting */
+  #decay { margin-top:auto; }
+  #decay b { display:block; font-family:var(--mono); font-size:26px; font-weight:400; color:var(--accent); letter-spacing:-.02em; line-height:1.1; }
+  #decay small { color:var(--muted); font-size:11px; }
+
+  /* --- river: the station terminal ---------------------------------------- */
+  #river { display:flex; flex-direction:column; min-width:0; min-height:0; padding:10px; }
+  .shell {
+    flex:1; min-height:0; display:flex; flex-direction:column;
+    border:1px solid; border-color:var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+    background:#0a0c0a; font-family:var(--mono); font-size:12px;
   }
-  #decay small { color: var(--dim); font-size: 12px; }
-
-  #fp { font-family: var(--mono); font-size: 12px; color: var(--dim); word-break: break-all; }
-  #newfp {
-    margin-top: 6px; padding: 4px 8px; font: inherit; font-size: 11px;
-    background: transparent; color: var(--dim);
-    border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+  .shell__top {
+    display:flex; justify-content:space-between; gap:10px; padding:7px 10px;
+    background:linear-gradient(var(--bar-top),var(--bar-bottom)); border-bottom:1px solid var(--bevel-dark);
+    color:#e6e9ef; font-family:var(--label); font-size:10px; font-weight:bold; text-transform:uppercase; letter-spacing:.08em;
   }
-  #newfp:hover { color: var(--text); border-color: var(--dim); }
-  #newfp:focus-visible { outline: 2px solid var(--sodium); outline-offset: 1px; }
-  #newfp:disabled { opacity: 0.45; cursor: default; }
-  #sound {
-    padding: 4px 8px; font: inherit; font-size: 11px;
-    background: transparent; color: var(--dim);
-    border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+  #log { flex:1; min-height:0; overflow-y:auto; padding:12px; line-height:1.7; }
+
+  /* one message: time | nick | text, nick right-aligned like irssi */
+  .line { display:grid; grid-template-columns:44px 120px 1fr; gap:10px; }
+  .line + .line { margin-top:2px; }
+  .at   { color:#5c655e; font-size:11px; white-space:nowrap; }
+  .who  { color:var(--accent); font-weight:bold; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .what { color:var(--term-green); white-space:pre-wrap; word-break:break-word; min-width:0; }
+  .unsigned .who::after { content:"?"; color:var(--off); margin-left:3px; }
+  .sys  { color:var(--muted); grid-column:2 / -1; }
+  .bad  { color:var(--off); grid-column:2 / -1; }
+
+  #composer {
+    display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;
+    padding:8px; border-top:1px solid var(--border); background:var(--panel);
   }
-  #sound:hover { color: var(--text); border-color: var(--dim); }
-  #sound:focus-visible { outline: 2px solid var(--sodium); outline-offset: 1px; }
-
-  /* --- message river ---------------------------------------------------- */
-  #river { display: flex; flex-direction: column; min-width: 0; }
-
-  #log {
-    flex: 1; overflow-y: auto;
-    padding: 20px 26px;
-    font-family: var(--mono); font-size: 13.5px; line-height: 1.7;
-  }
-
-  /* Right-aligned nick column, the way irssi and weechat lay it out.
-     Alignment is the information: you scan the gutter, not the text. */
-  .line { display: grid; grid-template-columns: 52px 128px 1fr; gap: 12px; }
-  .line + .line { margin-top: 2px; }
-  .at   { color: var(--dim); font-size: 12px; }
-  .who  { color: var(--sodium); text-align: right; overflow: hidden; text-overflow: ellipsis; }
-  .what { white-space: pre-wrap; word-break: break-word; min-width: 0; }
-
-  .unsigned .who::after { content: "?"; color: var(--alert); margin-left: 3px; }
-  .sys  { color: var(--dim); grid-column: 2 / -1; }
-  .bad  { color: var(--alert); grid-column: 2 / -1; }
-
-  /* --- composer --------------------------------------------------------- */
-  #composer { border-top: 1px solid var(--line); padding: 14px 26px; }
+  .prompt { color:var(--term-green); font-weight:bold; }
   #say {
-    width: 100%; padding: 11px 13px;
-    background: var(--panel); color: var(--text);
-    border: 1px solid var(--line); border-radius: 5px;
-    font-family: var(--mono); font-size: 13.5px;
+    width:100%; padding:7px 9px; font-family:var(--mono); font-size:12px; color:var(--term-green);
+    background:#0a0c0a; border:1px solid; border-color:var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark); outline:none;
   }
-  #say:focus { outline: 2px solid var(--sodium); outline-offset: 1px; }
-  #say:disabled { opacity: 0.45; }
+  #say:focus { border-color:var(--accent); }
+  #say:disabled { opacity:.45; }
+  #say::placeholder { color:#5c655e; }
 
-  /* --- entry screen ----------------------------------------------------- */
-  #gate {
-    position: fixed; inset: 0; background: var(--ink);
-    display: grid; place-items: center; padding: 24px;
-  }
-  #gate .box { max-width: 30rem; }
-  #gate h1 { font-size: 30px; margin: 0 0 12px; letter-spacing: -0.02em; }
-  #gate h1 span { color: var(--sodium); }
-  #gate p { color: var(--dim); margin: 0 0 22px; }
-  #gate button {
-    padding: 10px 18px; font: inherit; font-weight: 500;
-    background: var(--sodium); color: var(--ink);
-    border: 0; border-radius: 5px; cursor: pointer;
-  }
-  #gate button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-  #invite {
-    margin-top: 18px; padding: 11px; width: 100%;
-    background: var(--panel); color: var(--text);
-    border: 1px solid var(--line); border-radius: 5px;
-    font-family: var(--mono); font-size: 12px;
-  }
+  /* --- footer -------------------------------------------------------------- */
+  .footer { width:min(var(--max),100%); margin:0 auto; background:var(--panel-dark); border:1px solid var(--border); border-top:2px solid var(--bevel-dark); padding:8px 14px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .footer strong { color:#e6e9ef; font-family:var(--label); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+  .footer code { color:var(--accent); font-family:var(--mono); }
 
+  /* --- entry screen: a dialog window, like the site's boot screen ---------- */
+  #gate { position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:20px;
+    background:var(--page-bg) repeating-linear-gradient(45deg,rgba(255,255,255,.015) 0 2px,transparent 2px 8px); }
+  .win { width:min(560px,100%); background:var(--panel); border:1px solid; border-color:var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light); box-shadow:3px 3px 0 var(--bevel-dark); }
+  .win__title { display:flex; justify-content:space-between; gap:12px; padding:6px 10px; background:linear-gradient(var(--bar-top),var(--bar-bottom)); border-bottom:1px solid var(--bevel-dark); font-family:var(--label); font-size:10px; font-weight:bold; text-transform:uppercase; letter-spacing:.06em; color:#e6e9ef; }
+  .win__body { padding:18px; font-family:var(--mono); font-size:12px; }
+  .win__logo { color:#e6e9ef; margin:0 0 14px; font-family:Impact,'Arial Black',sans-serif; font-weight:400; font-size:clamp(1.6rem,4vw,2.4rem); letter-spacing:.04em; text-transform:uppercase; }
+  .win__logo span { color:var(--accent); }
+  .win__body p { color:var(--term-green); margin:0 0 16px; }
+  .win__body p.bad { color:var(--off); }
+  .win__lines { color:#5c655e; margin:0 0 14px; }
+  .win__lines b { color:var(--warn); font-weight:normal; }
+  .win__actions { display:flex; flex-wrap:wrap; gap:8px; }
+  #invite { display:none; }
+
+  @media (prefers-reduced-motion:reduce) { .broadcast__track { animation:none; padding-left:0; } }
   @media (max-width: 720px) {
-    #app { grid-template-columns: 1fr; }
-    #rail { display: none; }
+    #app { grid-template-columns:1fr; grid-template-rows:auto 1fr; }
+    #rail { border-right:0; border-bottom:1px solid var(--border); display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:44vh; }
+    #rail > * { min-width:0; }
+    #decay { margin-top:0; }
+    .line { grid-template-columns:44px 84px 1fr; gap:6px; }
+    #composer { grid-template-columns:auto 1fr; }
+    #composer .btn { grid-column:1 / -1; }
   }
 </style>
 </head>
 
 <body>
 
+<div class="broadcast"><div class="broadcast__track"><span>signal:</span> kagchat online // no accounts // scrambled in your browser before it leaves // the relay keeps noise for 24h, then nothing</div></div>
+<header class="site-header"><div class="nav">
+  <a class="logo" href="https://sleepdeprivationstation.com/chat.html"><span class="logo__mark">wired://</span> kagchat</a>
+  <span class="tab tab--state" id="conn">relay: connecting</span>
+</div></header>
+<div class="creed"><strong>You are a person. You are loved.</strong><span>//</span>Don't stop being a good person because of bad people.</div>
+
 <!-- Shown until a room key exists. -->
 <div id="gate">
-  <div class="box">
-    <h1>kag<span>chat</span></h1>
-    <p>Rooms are opened with a key that never leaves your browser. The server
-       stores scrambled text it cannot read, and forgets all of it after a day.</p>
-    <button id="mkroom">Open a new room</button>
-    <input id="invite" readonly hidden>
+  <div class="win">
+    <div class="win__title"><span>KAGCHAT // NEW ROOM</span><span>no accounts</span></div>
+    <div class="win__body">
+      <h1 class="win__logo">kag<span>chat</span></h1>
+      <div class="win__lines">&gt; key never leaves this browser<br>&gt; relay stores ciphertext only<br>&gt; scrollback ttl: <b>24h</b></div>
+      <p>Rooms are opened with a key that never leaves your browser. The server
+         stores scrambled text it cannot read, and forgets all of it after a day.</p>
+      <div class="win__actions"><button id="mkroom" class="btn btn--amber" type="button">Open a new room</button></div>
+      <input id="invite" readonly hidden>
+    </div>
   </div>
 </div>
 
-<div id="app" hidden>
+<main id="app" hidden>
   <aside id="rail">
     <div id="mark">kag<span>chat</span></div>
 
-    <label class="field">
-      <span>Room name</span>
-      <input id="room" maxlength="40" autocomplete="off" spellcheck="false" placeholder="unnamed room">
-    </label>
+    <section>
+      <h2 class="bar">Room</h2>
+      <div class="panel">
+        <label class="field">
+          <span>Room name</span>
+          <input id="room" maxlength="40" autocomplete="off" spellcheck="false" placeholder="unnamed room">
+        </label>
+        <label class="field">
+          <span>Invite link</span>
+          <input id="share" readonly>
+        </label>
+      </div>
+    </section>
 
-    <label class="field">
-      <span>Your name here</span>
-      <input id="nick" maxlength="24" autocomplete="off" spellcheck="false">
-    </label>
+    <section>
+      <h2 class="bar">You</h2>
+      <div class="panel">
+        <label class="field">
+          <span>Your name here</span>
+          <input id="nick" maxlength="24" autocomplete="off" spellcheck="false">
+        </label>
+        <div class="field">
+          <label>Your fingerprint</label>
+          <div id="fp">generating</div>
+          <button id="newfp" class="btn" type="button" title="Make a new signing key. Messages you already sent keep the old fingerprint.">new fingerprint</button>
+        </div>
+      </div>
+    </section>
 
-    <label class="field">
-      <span>Invite link</span>
-      <input id="share" readonly>
-    </label>
+    <section>
+      <h2 class="bar">Signal</h2>
+      <div class="panel">
+        <button id="sound" class="btn btn--block" type="button" title="Play a soft tone when a message arrives while this tab is in the background.">sound: on</button>
+      </div>
+    </section>
 
-    <div class="field">
-      <label>Your fingerprint</label>
-      <div id="fp">generating</div>
-      <button id="newfp" type="button" title="Make a new signing key. Messages you already sent keep the old fingerprint.">new fingerprint</button>
-    </div>
-
-    <div class="field">
-      <button id="sound" type="button" title="Play a soft tone when a message arrives while this tab is in the background.">sound: on</button>
-    </div>
-
-    <div id="decay">
+    <div id="decay" class="panel">
       <b id="clock">24:00</b>
       <small>until the oldest messages here are deleted</small>
     </div>
   </aside>
 
-  <main id="river">
-    <div id="log" role="log" aria-live="polite"></div>
-    <div id="composer">
-      <input id="say" placeholder="Connecting" autocomplete="off" disabled>
+  <section id="river">
+    <div class="shell">
+      <div class="shell__top"><span>KAGCHAT_SESSION</span><span id="shell-room">relay // erebus</span></div>
+      <div id="log" role="log" aria-live="polite"></div>
+      <div id="composer">
+        <span class="prompt">&gt;</span>
+        <input id="say" placeholder="Connecting" autocomplete="off" disabled>
+        <button id="send" class="btn" type="button">send</button>
+      </div>
     </div>
-  </main>
-</div>
+  </section>
+</main>
+
+<footer class="footer">
+  <span><strong>Sleep Deprivation Station</strong> &nbsp;//&nbsp; kagchat</span>
+  <span>You are a person. You are loved. <code>E2E</code></span>
+</footer>
 
 <script>
 "use strict";
@@ -399,7 +454,7 @@ function paint(m, ok) {
 
   const at = document.createElement("div");
   at.className = "at";
-  at.textContent = new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  at.textContent = new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 
   const who = document.createElement("div");
   who.className = "who";
@@ -435,12 +490,19 @@ function note(text, bad) {
 let sock = null;
 let backoff = 500; // grows on repeated failure so we don't hammer the server
 
+function setConn(state, text) {
+  const t = $("conn");
+  t.className = "tab tab--state" + (state ? " is-" + state : "");
+  t.textContent = text;
+}
+
 function connect(ch, onFrame) {
   const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
   sock = new WebSocket(url);
 
   sock.onopen = () => {
     backoff = 500;
+    setConn("on", "relay: online");
     sock.send(JSON.stringify({ op: "join", ch }));
     $("say").disabled = false;
     $("say").placeholder = "Say something";
@@ -451,6 +513,7 @@ function connect(ch, onFrame) {
   // Reconnect with exponential backoff. The VIM3 nodes are on WiFi and will
   // drop sockets occasionally; this makes that invisible instead of fatal.
   sock.onclose = () => {
+    setConn("off", "relay: reconnecting");
     $("say").disabled = true;
     $("say").placeholder = "Reconnecting";
     setTimeout(() => connect(ch, onFrame), backoff);
@@ -471,6 +534,7 @@ let roomName = "";
 function setTitle() {
   const base = roomName ? roomName + " — kagchat" : "kagchat";
   document.title = unread ? "(" + unread + ") " + base : base;
+  $("shell-room").textContent = roomName ? roomName : "relay // erebus";
 }
 function clearUnread() { unread = 0; setTitle(); }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) clearUnread(); });
@@ -659,6 +723,9 @@ async function boot() {
     else if (f.op === "msg") { await show(f.body, true); }
     else if (f.op === "error") { note(f.err, true); }
   });
+
+  // The send button is the Enter key for people on a phone keyboard.
+  $("send").onclick = () => $("say").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
 
   $("say").onkeydown = async (e) => {
     if (e.key !== "Enter" || !e.target.value.trim()) return;

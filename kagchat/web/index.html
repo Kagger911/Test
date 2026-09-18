@@ -122,6 +122,7 @@
     border:1px solid; border-color:var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
     background:#0a0c0a; font-family:var(--mono); font-size:12px;
   }
+  #here { color:var(--term-green); }
   .shell__top {
     display:flex; justify-content:space-between; gap:10px; padding:7px 10px;
     background:linear-gradient(var(--bar-top),var(--bar-bottom)); border-bottom:1px solid var(--bevel-dark);
@@ -286,7 +287,7 @@
 
   <section id="river">
     <div class="shell">
-      <div class="shell__top"><span>KAGCHAT_SESSION</span><span id="shell-room">relay // erebus</span></div>
+      <div class="shell__top"><span>KAGCHAT_SESSION</span><span><span id="shell-room">relay // erebus</span> <span id="here" title="sockets connected to this room right now, on every relay; a live number, never stored"></span></span></div>
       <div id="log" role="log" aria-live="polite"></div>
       <div id="composer">
         <span class="prompt">&gt;</span>
@@ -834,6 +835,7 @@ async function boot() {
     // all. Iterating it directly throws on every join to a fresh room.
     if (f.op === "history") { for (const b of f.msgs || []) await show(b, false); }
     else if (f.op === "msg") { await show(f.body, true); }
+    else if (f.op === "presence") { $("here").textContent = "// " + f.n + " here"; }
     else if (f.op === "error") { note(f.err, true); }
   });
 

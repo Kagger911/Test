@@ -209,6 +209,15 @@ the `#`. Browsers never transmit that, so the server cannot learn it.
 Anyone holding the link can read the room, permanently. There is no revocation.
 To remove someone, make a new room.
 
+## "N here"
+
+The room's title bar shows how many sockets are connected to it right now,
+across every relay. The relay already had to know this to deliver messages
+(it is listed below as irreducible metadata); showing it stores nothing new.
+Each relay keeps its own count per room in Redis with a 90 s expiry and the
+number shown is the sum. It counts sockets, not people: two tabs are two.
+Nothing about *who* is in the count, and no history of it exists anywhere.
+
 ## What is and is not hidden
 
 Hidden from the server and from anything in front of it:

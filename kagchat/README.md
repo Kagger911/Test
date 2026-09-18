@@ -2,6 +2,9 @@
 
 End-to-end encrypted chat. The server relays blobs it cannot read.
 
+For the machines, tunnel, backups and failure modes around it, see
+[`../STATION.md`](../STATION.md). This file is the chat itself.
+
 ## Getting it onto Erebus
 
 No zip, no scp, no rebuilding the folder structure by hand. Pull it straight

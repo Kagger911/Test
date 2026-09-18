@@ -9,9 +9,11 @@
 #             label the node sds.role=chat so the manifest can pin to it.
 set -u
 failed=0
-BOARDS="goon-vim3-1=10.0.0.165 goon-vim3-2=10.0.0.192 goon-vim3-3=10.0.0.19 goon-vim3-4=10.0.0.26"
-USER_ON_BOARD=goon
 HERE="$(cd "$(dirname "$0")" && pwd)"
+. "$HERE/station-env.sh"
+USER_ON_BOARD="$BOARD_USER"
+# registries.yaml is written from the env, not shipped with an IP in it
+sed "s|REGISTRY|$REGISTRY|g" "$HERE/registries.yaml.tmpl" > "$HERE/registries.yaml"
 
 for pair in $BOARDS; do
   name="${pair%%=*}"; ip="${pair##*=}"

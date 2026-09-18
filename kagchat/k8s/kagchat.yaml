@@ -122,7 +122,7 @@ spec:
             matchLabels: { app: relay }
       containers:
         - name: relay
-          image: 10.0.0.202:5000/kagchat:latest   # the registry container on Erebus
+          image: ${REGISTRY}/kagchat:latest   # deploy.sh fills REGISTRY from private/station.env
           # Always: the tag never changes, so a rollout restart must re-pull.
           imagePullPolicy: Always
           env:

@@ -11,7 +11,7 @@ No zip, no scp, no rebuilding the folder structure by hand. Pull it straight
 from git on the box that is going to build it:
 
 ```bash
-ssh goon@10.0.0.202
+ssh <user>@<erebus-ip>
 git clone -b claude/erebus-docker-build-l5bm8z https://github.com/kagger911/test.git
 cd test/kagchat
 ```
@@ -51,14 +51,14 @@ KAGCHAT_PORT=8090 docker compose up --build
 Open <http://localhost:8081>, click **Open a new room**, then paste the same
 URL into a second browser window. Both windows are now in the same room.
 
-Testing from another machine, do **not** browse to `http://10.0.0.202:8081`.
+Testing from another machine, do **not** browse to `http://<erebus-ip>:8081`.
 Browsers only expose the encryption API (`crypto.subtle`) in a secure context:
 https, or a localhost address. A plain-http LAN IP is neither, so the client
 cannot start; it tells you so on the entry screen instead of hanging. Tunnel it
 to localhost instead:
 
 ```bash
-ssh -L 8081:localhost:8081 goon@10.0.0.202     # leave this open
+ssh -L 8081:localhost:8081 <user>@<erebus-ip>     # leave this open
 ```
 
 then browse to <http://localhost:8081>. This affects LAN testing only — behind

@@ -12,6 +12,7 @@
 # touched, so if this stops early nothing has changed for anyone.
 set -eu
 cd "$(dirname "$0")/.."
+. k8s/station-env.sh
 
 echo "################ 1/4  registry on Erebus"
 if docker ps --format '{{.Names}}' | grep -qx registry; then

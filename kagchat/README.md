@@ -240,11 +240,13 @@ Signal's web client has the same property. What this project does about it:
   ```
 
   No output means byte-for-byte the published file.
-- **A strict Content-Security-Policy** is sent with the page: scripts,
-  styles, media and connections are same-origin only. Anything injected
-  into the HTML in transit — a CDN's analytics beacon, for example — is
-  refused by the browser even if it reaches you. Check with the Network tab:
-  there should be exactly one host.
+- **A strict Content-Security-Policy** is sent with the page. The relay
+  hashes the `<script>` and `<style>` blocks of `index.html` at startup and
+  allows exactly those (`script-src 'sha256-…'`), with no `'unsafe-inline'`;
+  media and connections are same-origin only. Anything injected into the
+  HTML in transit — a CDN's analytics beacon, an inline snippet — does not
+  match a hash and is refused by the browser even if it reaches you. Check
+  with the Network tab: there should be exactly one host.
 - **The relay never logs an IP**, and Cloudflare's optional injections must
   stay off for this hostname: Web Analytics, Rocket Loader, email
   obfuscation and the JS challenge. The CSP blocks their scripts anyway, but

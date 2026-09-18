@@ -18,6 +18,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log"
@@ -138,21 +140,54 @@ var build = "dev"
 // header, which Tor Browser turns into a ".onion available" prompt.
 var onion = os.Getenv("ONION_ADDR")
 
+// cspSources holds the script-src and style-src values: SHA-256 hashes of
+// the exact <script> and <style> blocks in web/index.html, computed once at
+// startup. With hashes instead of 'unsafe-inline', the browser runs only
+// the blocks that shipped in the file: an inline snippet injected in
+// transit, or by an XSS, does not match a hash and is refused. Editing
+// index.html changes the hashes; they are recomputed on every start.
+var cspScript, cspStyle = "'none'", "'none'"
+
+func hashBlocks(html, tag string) string {
+	re := regexp.MustCompile(`(?s)<` + tag + `>(.*?)</` + tag + `>`)
+	var out []string
+	for _, m := range re.FindAllStringSubmatch(html, -1) {
+		sum := sha256.Sum256([]byte(m[1]))
+		out = append(out, "'sha256-"+base64.StdEncoding.EncodeToString(sum[:])+"'")
+	}
+	if len(out) == 0 {
+		return "'none'"
+	}
+	return strings.Join(out, " ")
+}
+
+func init() {
+	b, err := os.ReadFile("./web/index.html")
+	if err != nil {
+		log.Printf("csp: cannot read web/index.html (%v); inline script and style will be blocked", err)
+		return
+	}
+	cspScript = hashBlocks(string(b), "script")
+	cspStyle = hashBlocks(string(b), "style")
+	log.Printf("csp: script-src %s style-src %s", cspScript, cspStyle)
+}
+
 // secure wraps the file server with headers that make the browser refuse
 // anything the page did not ship with. The important one is the CSP:
-// scripts, styles, media and connections are same-origin only, so a tag
-// injected in transit (a CDN's analytics beacon, for instance) is blocked
-// by the browser even if it makes it into the HTML. Anything in front of
-// this server could still strip the header; the client trust problem
-// does not go away, but this closes the accidental version of it.
+// only the hashed script and style blocks run, and media and connections
+// are same-origin only, so anything injected in transit (a CDN's analytics
+// beacon, an inline snippet) is blocked by the browser even if it makes it
+// into the HTML. Anything in front of this server could still strip the
+// header; the client trust problem does not go away, but this closes the
+// accidental version of it.
 func secure(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		// 'self' does not reliably cover ws:/wss: in every browser, so the
 		// socket origin is spelled out from the Host the request came in on.
 		h.Set("Content-Security-Policy",
-			"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; "+
-				"connect-src 'self' ws://"+r.Host+" wss://"+r.Host+"; media-src 'self'; img-src 'self' data:; "+
+			"default-src 'none'; script-src "+cspScript+"; style-src "+cspStyle+"; "+
+				"connect-src 'self' ws://"+r.Host+" wss://"+r.Host+"; media-src 'self'; img-src 'self'; "+
 				"base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("X-Content-Type-Options", "nosniff")

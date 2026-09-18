@@ -188,6 +188,9 @@
   .rooms .drop { cursor:pointer; font-family:var(--label); font-size:11px; font-weight:bold; color:var(--muted); background:var(--panel); border:1px solid var(--border); padding:0 7px; }
   .rooms .drop:hover { color:var(--off); }
   .rooms-empty { font-family:var(--mono); font-size:11px; color:#5c655e; margin:8px 0 0; }
+  .field--gap { margin-top:10px; }
+  .gate-rooms { margin-top:14px; }
+  .gate-rooms > label { font-family:var(--label); font-size:10px; font-weight:bold; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
 
   @media (prefers-reduced-motion:reduce) { .broadcast__track { animation:none; padding-left:0; } }
   @media (max-width: 720px) {
@@ -221,7 +224,7 @@
       <p>Rooms are opened with a key that never leaves your browser. The server
          stores scrambled text it cannot read, and forgets all of it after a day.</p>
       <div class="win__actions"><button id="mkroom" class="btn btn--amber" type="button">Open a new room</button></div>
-      <div class="field" style="margin-top:14px"><label style="font-family:var(--label);font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Recent rooms on this browser</label><ul class="rooms" id="gate-rooms"></ul></div>
+      <div class="field gate-rooms"><label>Recent rooms on this browser</label><ul class="rooms" id="gate-rooms"></ul></div>
       <input id="invite" readonly hidden>
     </div>
   </div>
@@ -246,7 +249,7 @@
           <button id="newroom" class="btn" type="button" title="Open a fresh room with a new key.">new room</button>
           <button id="leave" class="btn" type="button" title="Back to the entry screen. The room keeps existing for anyone who has the link.">leave</button>
         </div>
-        <div class="field" style="margin-top:10px">
+        <div class="field field--gap">
           <label>Recent rooms</label>
           <ul class="rooms" id="rooms"></ul>
         </div>

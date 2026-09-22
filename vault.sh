@@ -28,6 +28,11 @@ PASS=(); [ -n "${VAULT_PASS:-}" ] && PASS=(-pass env:VAULT_PASS)
 case "${1:-}" in
   lock)
     [ -d private ] || { echo "nothing to lock: private/ is missing (run unlock first, or create it)"; exit 1; }
+    # A previous lock run under sudo leaves root-owned files behind; take them back.
+    if [ -n "$(find private ! -user "$(id -u)" -print -quit 2>/dev/null)" ]; then
+      sudo chown -R "$(id -u):$(id -g)" private
+    fi
+    chmod -R u+rwX private
     # Gather live secrets if this machine has them.
     if sudo -n test -d /var/lib/tor/kagchat 2>/dev/null || [ -d /var/lib/tor/kagchat ]; then
       mkdir -p private/secrets/tor-kagchat

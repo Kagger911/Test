@@ -42,6 +42,28 @@ pass the environment on this box).
 Storage classes: `local-path` (default; pins a pod to one node's disk),
 `nfs-shared`.
 
+### Shared storage (NFS)
+
+A WD My Cloud NAS exports one share, `Public`, to the LAN. It backs two
+things:
+
+- the `nfs-shared` storage class (the provisioner makes a sub-directory per
+  PVC inside `Public`);
+- an OS-level mount at `/mnt/nas` on every node, control plane and workers
+  alike, so files can be moved between machines with a plain `cp`.
+
+`nfs/check-nfs.sh` (read-only) shows the exports, the provisioner target and
+per node whether the client is installed and the share mounted.
+`nfs/prep-nfs.sh` installs `nfs-common`, adds one `/etc/fstab` line with
+`nofail` + `x-systemd.automount` (a node still boots with the NAS off; the
+share mounts on first access), mounts it, and proves a write from every node
+is visible from the control plane. Both read the NAS and node addresses from
+`private/station.env`.
+
+The NAS squashes every NFS writer to one anonymous user, so `/mnt/nas` is a
+shared drop box, not a home directory, and SQLite databases (Grafana) stay on
+`local-path`.
+
 ## kagchat
 
 End-to-end encrypted chat; the server relays ciphertext it cannot read.
